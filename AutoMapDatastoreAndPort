@@ -1,0 +1,104 @@
+% 模型和子系统路径
+modelName = 'BCM_Tx';
+subsystemPath = 'BCM_Tx/Runnable_BCM_Tx_sys';
+
+
+outportBlocks = find_system(modelName, 'SearchDepth', 1, 'FindAll', 'On', 'type', 'block', 'BlockType', 'Outport');
+% Initialize an empty cell array to store the filtered port names
+portname_filter = {};
+% Extract the second-to-last element from the port name and store it in the array
+disp('Filtered Port Names:');
+for i = 1:length(outportBlocks)
+    portName = get_param(outportBlocks(i), 'PortName'); % Get the full port name
+    
+    % Split the port name by underscores
+    parts = strsplit(portName, '_');
+    
+    % Check if there are at least two parts
+    if length(parts) >= 2
+        % Extract the second-to-last element
+        filteredName = parts{end-1};
+        portname_filter{end+1} = filteredName; % Store the filtered name
+        disp(filteredName); % Display the filtered name
+    else
+        % If there is only one part, store the original name
+        portname_filter{end+1} = portName;
+        disp(portName);
+    end
+end
+
+
+
+
+% 加载模型
+load_system(modelName);
+
+% 获取子系统中的所有 Inport 端口
+inports = find_system(subsystemPath, 'FindAll', 'On', 'type', 'block', 'BlockType', 'Inport');
+
+
+% 假设 portname_filter 已经定义并去重
+portname_filter = unique(portname_filter);  % 确保 portname_filter 中没有重复元素
+
+% 遍历 portname_filter，找到匹配的 Inport 并连接
+for i = 1:length(portname_filter)
+    signalName = portname_filter{i};
+    matched = false;  % 标记是否找到匹配的 Inport
+
+    % 遍历所有 Inport 端口，查找是否有匹配的名称
+    for j = 1:length(inports)
+        
+        inportName = get_param(inports(j), 'PortName');  % 获取当前 Inport 的名称
+
+        inportPath = [subsystemPath,'/',inportName];
+        % 检查是否匹配
+        if contains(inportName, signalName)
+            datastoreWritePath = [subsystemPath, '/DataStoreWrite_', ['BCM_Tx_', signalName]];
+            % 连接 Inport 和 Data Store Write
+            srcPort = get_param(inportPath, 'PortHandles').Outport(1);    % Inport的输出端口
+            dstPort = get_param(datastoreWritePath, 'PortHandles').Inport(1); % DataStoreWrite的输入端口
+            add_line(subsystemPath, srcPort, dstPort, 'autorouting', 'smart');
+            matched = true;  % 标记找到匹配
+            break;  % 找到匹配后退出内层循环
+        end
+    end
+
+    % 如果没有找到匹配的 Inport，输出警告
+    if ~matched
+        warning('No matching Inport found for signal: %s', signalName);
+    end
+end
+
+
+i=0;
+j=0;
+%found outport
+outports = find_system(subsystemPath, 'FindAll', 'On', 'type', 'block', 'BlockType', 'Outport');
+% 遍历 portname_filter，找到匹配的 Inport 并连接
+for i = 1:length(portname_filter)
+    signalName = portname_filter{i};
+    matched = false;  % 标记是否找到匹配的 Inport
+
+    % 遍历所有 Inport 端口，查找是否有匹配的名称
+    for j = 1:length(outports)
+        
+        outportName = get_param(outports(j), 'PortName');  % 获取当前 Inport 的名称
+
+        outportPath = [subsystemPath,'/',outportName];
+        % 检查是否匹配
+        if contains(outportName, signalName)
+            datastoreReadPath = [subsystemPath, '/DataStoreRead_', ['BCM_Tx_', signalName]];
+            % 连接 Inport 和 Data Store Write
+            dstPort = get_param(outportPath, 'PortHandles').Inport(1);    % Inport的输端口
+            srcPort = get_param(datastoreReadPath, 'PortHandles').Outport(1); % DataStoreread的输出端口
+            add_line(subsystemPath, srcPort, dstPort, 'autorouting', 'smart');
+            matched = true;  % 标记找到匹配
+            break;  % 找到匹配后退出内层循环
+        end
+    end
+
+    % 如果没有找到匹配的 Inport，输出警告
+    if ~matched
+        warning('No matching Inport found for signal: %s', signalName);
+    end
+end
